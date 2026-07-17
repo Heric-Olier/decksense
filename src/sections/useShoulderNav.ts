@@ -7,6 +7,10 @@ interface Options {
   onSelect: (id: string) => void;
 }
 
+// Per Steam Input: 30 = LSHOULDER (L1), 31 = RSHOULDER (R1).
+const LSHOULDER = 30;
+const RSHOULDER = 31;
+
 /**
  * L1/R1 (SteamOS bumpers — "shoulders") to cycle tabs.
  *
@@ -16,19 +20,9 @@ interface Options {
  * Degrades silently when `SteamClient.Input.RegisterForControllerInputMessages`
  * is unavailable (non-Steam runtime, future API change, etc.).
  *
- * Button ids: 30 = LSHOULDER, 31 = RSHOULDER (per Steam Input).
+ * Callback signature: `(idx, button, pressed)` — three positional args,
+ * not an object. Pattern lifted from Panel de Control.
  */
-// SteamClient is declared globally by @decky/ui. We cast to any to read
-// the optional Input.RegisterForControllerInputMessages method, which is
-// not always present in the typed surface.
-const SC = (SteamClient as unknown as {
-  Input?: {
-    RegisterForControllerInputMessages?: (
-      cb: (msg: { button?: number }) => void
-    ) => () => void;
-  };
-});
-
 export function useShoulderNav({ ids, active, onSelect }: Options) {
   const idsRef = useRef(ids);
   const activeRef = useRef(active);
@@ -39,25 +33,30 @@ export function useShoulderNav({ ids, active, onSelect }: Options) {
   onSelectRef.current = onSelect;
 
   useEffect(() => {
-    const register = SC.Input?.RegisterForControllerInputMessages;
-    if (typeof register !== "function") return;
-
-    let unregister: (() => void) | undefined;
+    let reg: { unregister?: () => void } | null = null;
     try {
-      unregister = register.call(SC.Input, (msg) => {
-        if (msg?.button === 30) {
-          onSelectRef.current(cycleTab(idsRef.current, activeRef.current, -1));
-        } else if (msg?.button === 31) {
-          onSelectRef.current(cycleTab(idsRef.current, activeRef.current, 1));
+      const input = (SteamClient as any)?.Input;
+      if (!input || typeof input.RegisterForControllerInputMessages !== "function") {
+        return;
+      }
+      reg = input.RegisterForControllerInputMessages(
+        (_idx: number, button: number, pressed: boolean) => {
+          if (!pressed) return;
+          if (button !== LSHOULDER && button !== RSHOULDER) return;
+          const direction = button === RSHOULDER ? 1 : -1;
+          const next = cycleTab(idsRef.current, activeRef.current, direction);
+          if (next !== activeRef.current) {
+            onSelectRef.current(next);
+          }
         }
-      });
+      );
     } catch {
-      // Silent degradation.
+      // Input API unavailable; degrade silently.
     }
 
     return () => {
       try {
-        unregister?.();
+        reg?.unregister?.();
       } catch {
         // ignore
       }
