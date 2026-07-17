@@ -8,6 +8,54 @@ code like this" — every non-trivial decision should be findable here.
 
 ---
 
+## 2026-07-17 — Repository, build pipeline, first release
+
+**Done**
+
+- Created `scripts/package.sh` — a small bash script that bundles the
+  plugin into the zip layout Decky Loader expects (top-level directory
+  named after the plugin, with `dist/`, `package.json`, `plugin.json`,
+  `main.py`, `defaults/`, `py_modules/`, `LICENSE`, `README`). Source
+  maps are excluded to keep the artifact small. The script reads name
+  and version from `package.json` so it stays correct as we tag
+  releases. It will be reused by the release GitHub Action later.
+- Bootstrapped the toolchain on the dev machine:
+  - `pnpm 11.13.1` installed via `npm i -g pnpm` (corepack not
+    available on this image).
+  - `pnpm install` brings in `@decky/ui 4.12.0`, `@decky/api 1.1.3`,
+    `@decky/rollup 1.0.2`, `react-icons`, `rollup`, `typescript`.
+    No `docker` (no decky CLI) — handled by the manual packaging
+    script instead.
+- `pnpm run build` produces `dist/index.js` (~7 KB) plus a sourcemap.
+- Packaged `out/decksense-v0.0.1.zip` (21 entries, ~25 KB).
+- Created the GitHub repository at `Heric-Olier/decksense` as
+  **private** until the MVP is ready, and pushed `main`.
+- Tagged `v0.0.1` and published the first GitHub Release with the zip
+  as a release asset.
+
+**Notes**
+
+- pnpm 11 warns that the `pnpm.peerDependencyRules` field in
+  `package.json` is no longer read. The install and build still work,
+  so the field can be removed (or migrated to `.npmrc`) in a follow-up
+  cleanup commit.
+- The release is only reachable from a GitHub account that has access
+  to the private repo. Installing from the device needs either a
+  public repo or a GitHub token configured in Decky Loader. This is
+  expected for the "private until MVP" decision and will revisit when
+  Display Studio lands.
+
+**Next**
+
+- Decide install path on the Lenovo Legion Go S (make the repo public
+  for this skeleton, or pass the zip manually).
+- Phase 0 — hardware validation. First task: confirm the SteamOS
+  kernel version on the device and whether the rumble path goes
+  through the mainline `hid-lenovo-go-s` driver or through
+  InputPlumber.
+
+---
+
 ## 2026-07-17 — Bootstrap
 
 **Decisions**
