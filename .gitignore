@@ -1,0 +1,80 @@
+# Build artifacts
+dist/
+out/
+out/*
+bin/
+*.zip
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+.coverage
+htmlcov/
+
+# Local config / secrets
+.env
+.env.*
+
+# Editors
+.idea/
+*.iml
+.vscode/settings.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Decky CLI / loader internals
+decky_plugin.py
+cli/
+cli/*
+cli/decky
+
+# Native backend build output (when a daemon is introduced)
+backend/out
+
+# === Internal design notes — private, not for the public repo ===
+DeckSense-SDD.md
+*-SDD.md
+notes/
+drafts/
+
+# === AI tooling traces — never commit ===
+.claude/
+.claude*
+.cursor/
+.cursorignore
+.cursorindexingignore
+.aider*
+.aider.conf
+.aider.conf.yml
+.aider.chat.history.md
+.aider.input.history.md
+.aider.tags.cache.v3/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+COPILOT.md
+.kiro/
+.continue/
+.continue/
+.copilot/
+.cody/
+.codeium/
+.tabnine/
+.supermaven/
+.bin/ai_*

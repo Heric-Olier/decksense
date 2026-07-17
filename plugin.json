@@ -1,0 +1,11 @@
+{
+  "name": "DeckSense",
+  "author": "Heric Olier",
+  "flags": ["_root"],
+  "api_version": 1,
+  "publish": {
+    "tags": ["utility", "display", "haptic"],
+    "description": "Display, haptic and per-game profile studio for PC handhelds.",
+    "image": ""
+  }
+}

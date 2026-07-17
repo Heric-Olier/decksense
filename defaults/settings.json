@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "display": {
+    "active_preset": "off"
+  },
+  "haptic": {
+    "gain": 1.0
+  },
+  "profiles": {
+    "per_game": false
+  },
+  "updater": {
+    "channel": "stable",
+    "auto_check": true
+  }
+}
