@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import tempfile
 import urllib.request
@@ -69,6 +70,33 @@ class UpdateStatus:
         return asdict(self)
 
 
+def _build_ssl_context() -> ssl.SSLContext:
+    """Build an SSL context that trusts the host system's CA bundle.
+
+    The plugin_loader process on SteamOS sometimes runs with an
+    ``SSL_CERT_FILE`` that points to a non-existent or partial bundle,
+    which makes ``urllib.request.urlopen`` fail with
+    ``CERTIFICATE_VERIFY_FAILED``. We construct a default context and
+    explicitly load the system CA files (Debian/Arch use
+    ``/etc/ssl/certs/ca-certificates.crt``; Fedora/RHEL use
+    ``/etc/pki/tls/certs/ca-bundle.crt``) so verification works
+    regardless of the inherited environment.
+    """
+    ctx = ssl.create_default_context()
+    for cafile in (
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+    ):
+        try:
+            ctx.load_verify_locations(cafile=cafile)
+        except (FileNotFoundError, ssl.SSLError):
+            continue
+    return ctx
+
+
+_SSL_CONTEXT = _build_ssl_context()
+
+
 def _build_request(url: str) -> urllib.request.Request:
     return urllib.request.Request(
         url,
@@ -90,7 +118,7 @@ def check(force: bool = False) -> dict[str, Any]:
 
     status = UpdateStatus(state="checking", current_version=CURRENT_VERSION)
     try:
-        with urllib.request.urlopen(_build_request(RELEASES_URL), timeout=15) as resp:
+        with urllib.request.urlopen(_build_request(RELEASES_URL), timeout=15, context=_SSL_CONTEXT) as resp:
             data = json.load(resp)
 
         tag = (data.get("tag_name") or "").lstrip("v")
@@ -141,7 +169,10 @@ def install() -> dict[str, Any]:
     try:
         with tempfile.TemporaryDirectory() as tmp:
             zip_path = Path(tmp) / "release.zip"
-            urllib.request.urlretrieve(asset_url, zip_path)
+            # urlretrieve doesn't accept an SSL context; use urlopen + write.
+            with urllib.request.urlopen(asset_url, timeout=30, context=_SSL_CONTEXT) as r, \
+                 zip_path.open("wb") as out:
+                shutil.copyfileobj(r, out)
 
             with zipfile.ZipFile(zip_path) as zf:
                 zf.extractall(tmp)
