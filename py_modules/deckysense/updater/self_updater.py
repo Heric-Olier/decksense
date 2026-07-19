@@ -27,6 +27,7 @@ import ssl
 import string
 import subprocess
 import tempfile
+import time
 import traceback
 import urllib.error
 import urllib.request
@@ -258,32 +259,33 @@ def install() -> dict[str, Any]:
             if not src.is_dir():
                 raise RuntimeError("bad_zip: no plugin folder found")
 
-            # Stage 1 — copy fresh files to a staging directory on the same
-            # filesystem as the plugin root (so os.rename works later).
-            # We can NOT rename across filesystems (/tmp/ is tmpfs, /home/ is
-            # btrfs), and we can NOT overwrite root-owned files in-place.
+            # Step 1 — Copy fresh files to a staging dir on the same fs.
+            # Creating a *new* directory + files never hits permission issues
+            # (there is no root-owned file to overwrite).
             suffix = "".join(random.choices(string.ascii_lowercase, k=8))
             staging = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.{suffix}"
-            shutil.copytree(src, staging)
-
-            # Stage 2 — atomic swap.  os.rename() on the *parent* directory
-            # (which deck owns) works regardless of who owns the moved dir's
-            # contents.
-            backup = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.bak"
-            if backup.exists():
-                shutil.rmtree(backup)
-            _PLUGIN_ROOT.rename(backup)
-            staging.rename(_PLUGIN_ROOT)
-
-            # Stage 3 — best-effort cleanup of the old (possibly root-owned)
-            # backup.  If it fails the user may manually `sudo chown` once.
             try:
-                shutil.rmtree(backup)
-            except Exception:
-                decky.logger.info("[updater] backup cleanup deferred (root-owned files)")
+                shutil.copytree(src, staging)
+            except Exception as exc:
+                raise RuntimeError(f"step1_staging_copy: {exc}") from exc
 
-        _mark_installed()
-        status.state = "done"
+            # Step 2 — Rename the old plugin dir away (same fs).
+            # os.rename() only needs w+x on the *parent* directory.
+            backup = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.bak.{int(time.time())}"
+            try:
+                _PLUGIN_ROOT.rename(backup)
+            except Exception as exc:
+                # Rollback: remove staging so we don't leave garbage
+                shutil.rmtree(staging, ignore_errors=True)
+                raise RuntimeError(f"step2_rename_backup: {exc}") from exc
+
+            # Step 3 — Rename staging into place (same fs).
+            try:
+                staging.rename(_PLUGIN_ROOT)
+            except Exception as exc:
+                # Rollback: put the old plugin back
+                backup.rename(_PLUGIN_ROOT)
+                raise RuntimeError(f"step3_rename_staging: {exc}") from exc
 
         _mark_installed()
         status.state = "done"
