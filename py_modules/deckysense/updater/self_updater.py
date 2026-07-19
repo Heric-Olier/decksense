@@ -255,10 +255,23 @@ def install() -> dict[str, Any]:
             if not src.is_dir():
                 raise RuntimeError("bad_zip: no plugin folder found")
 
+            # Purge existing files so we don't trip over root-owned files
+            # left by a manual sudo install.  Removing/unlinking a file only
+            # requires w+x on the *parent directory* (which deck owns), not
+            # on the file itself — so this works even when individual file
+            # inodes are owned by root.
+            for existing in list(_PLUGIN_ROOT.iterdir()):
+                if existing.name in (".", ".."):
+                    continue
+                if existing.is_dir():
+                    shutil.rmtree(existing)
+                else:
+                    existing.unlink()
+
             for item in src.iterdir():
                 dest = _PLUGIN_ROOT / item.name
                 if item.is_dir():
-                    shutil.copytree(item, dest, dirs_exist_ok=True)
+                    shutil.copytree(item, dest)
                 else:
                     shutil.copy2(item, dest)
 
