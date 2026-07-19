@@ -65,18 +65,36 @@ class InputPlumberAdapter(HapticBackend):
             f"{DBUS_INTERFACE}.{method}",
             *args,
         ]
+        result = _run_gdbus(cmd)
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout).strip()
+            raise RuntimeError(f"gdbus exit {result.returncode}: {err}")
+
+
+def _run_gdbus(cmd: list[str]) -> subprocess.CompletedProcess:
+    """Run gdbus, retrying with ``sudo -n`` if polkit blocks the call."""
+    try:
+        result = subprocess.run(
+            cmd,
+            env=_build_env(),
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"gdbus binary not found at /usr/bin/gdbus"
+        )
+    # Polkit denied — the plugin has _root privileges so try via sudo.
+    if result.returncode != 0 and "not authorized" in (result.stderr or "").lower():
         try:
+            sudo_cmd = ["/usr/bin/sudo", "-n"] + cmd
             result = subprocess.run(
-                cmd,
-                env=_build_env(),
+                sudo_cmd,
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"gdbus binary not found at /usr/bin/gdbus: {exc}"
-            ) from exc
-        if result.returncode != 0:
-            err = (result.stderr or result.stdout).strip()
-            raise RuntimeError(f"gdbus exit {result.returncode}: {err}")
+        except FileNotFoundError:
+            pass  # sudo not available, return the original error
+    return result
