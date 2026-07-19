@@ -25,6 +25,7 @@ import shutil
 import ssl
 import subprocess
 import tempfile
+import traceback
 import urllib.error
 import urllib.request
 import zipfile
@@ -255,18 +256,14 @@ def install() -> dict[str, Any]:
             if not src.is_dir():
                 raise RuntimeError("bad_zip: no plugin folder found")
 
-            # Purge existing files so we don't trip over root-owned files
-            # left by a manual sudo install.  Removing/unlinking a file only
-            # requires w+x on the *parent directory* (which deck owns), not
-            # on the file itself — so this works even when individual file
-            # inodes are owned by root.
-            for existing in list(_PLUGIN_ROOT.iterdir()):
-                if existing.name in (".", ".."):
-                    continue
-                if existing.is_dir():
-                    shutil.rmtree(existing)
-                else:
-                    existing.unlink()
+            # Rename the entire plugin dir out of the way so we don't trip
+            # over root-owned files left by a prior sudo manual install.
+            # Rename only requires w+x on the *parent directory*
+            # (/home/deck/homebrew/plugins/) which deck owns, NOT on the
+            # directory itself or its contents.
+            backup = tmpd / "old_plugin"
+            _PLUGIN_ROOT.rename(backup)
+            _PLUGIN_ROOT.mkdir(parents=True, exist_ok=True)
 
             for item in src.iterdir():
                 dest = _PLUGIN_ROOT / item.name
@@ -279,7 +276,8 @@ def install() -> dict[str, Any]:
         status.state = "done"
 
     except Exception as exc:  # noqa: BLE001
-        decky.logger.error(f"[updater] install failed: {exc}")
+        tb = traceback.format_exc()
+        decky.logger.error(f"[updater] install failed: {exc}\n{tb}")
         status.state = "error"
         status.error = f"install_failed: {exc}"
 
