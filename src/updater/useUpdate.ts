@@ -6,10 +6,6 @@ import {
   UpdateStatus,
 } from "../api";
 
-// Module-level session guards so multiple consumers (panel + alert dot)
-// share the same fetch state without re-checking.
-let sessionChecked = false;
-
 const INITIAL: UpdateStatus = { state: "idle", current_version: "" };
 
 export function useUpdate() {
@@ -19,7 +15,6 @@ export function useUpdate() {
     setStatus((prev) => ({ ...prev, state: "checking" }));
     const result = await checkForUpdate(force);
     setStatus(result);
-    sessionChecked = true;
   }, []);
 
   const install = useCallback(async () => {
@@ -33,11 +28,10 @@ export function useUpdate() {
     setStatus((prev) => ({ ...prev, state: "restarting" }));
   }, []);
 
-  // Auto-check once per session on first consumer mount.
+  // Auto-check on mount. The backend caches results per session,
+  // so duplicate calls from multiple consumers only hit GitHub once.
   useEffect(() => {
-    if (!sessionChecked) {
-      void check(false);
-    }
+    void check(false);
   }, [check]);
 
   return { status, check, install, restart };

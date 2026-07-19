@@ -82,7 +82,12 @@ def _build_ssl_context() -> ssl.SSLContext:
     ``/etc/pki/tls/certs/ca-bundle.crt``) so verification works
     regardless of the inherited environment.
     """
-    ctx = ssl.create_default_context()
+    try:
+        ctx = ssl.create_default_context()
+    except ssl.SSLError:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
     for cafile in (
         "/etc/ssl/certs/ca-certificates.crt",
         "/etc/pki/tls/certs/ca-bundle.crt",
