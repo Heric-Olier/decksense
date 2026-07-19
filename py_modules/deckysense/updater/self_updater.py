@@ -173,15 +173,15 @@ def check(force: bool = False) -> dict[str, Any]:
         status.latest_version = latest or CURRENT_VERSION
         status.release_notes = str(data.get("body", "") or "")
 
-        zip_candidates = {
-            f"{_PLUGIN_JSON.get('name', PLUGIN_NAME)}.zip",
-            f"{PLUGIN_NAME}.zip",
-        }
-        # GitHub replaces spaces with dots in asset names.
-        zip_candidates.update({n.replace(" ", ".") for n in zip_candidates})
+        # Asset naming in the release workflow: out/<name>-v<version>.zip
+        # e.g. "deckysense-v0.0.15.zip". Match any zip whose name contains
+        # the plugin name and the latest semver tag.
+        name_candidate = _PLUGIN_JSON.get("name", PLUGIN_NAME).lower()
+        tag_version = latest  # e.g. "0.0.15"
         asset_url: Optional[str] = None
         for asset in data.get("assets") or []:
-            if asset.get("name") in zip_candidates:
+            aname = (asset.get("name") or "").lower()
+            if aname.endswith(".zip") and name_candidate in aname and tag_version in aname:
                 asset_url = asset.get("browser_download_url")
                 break
         status.asset_url = asset_url
