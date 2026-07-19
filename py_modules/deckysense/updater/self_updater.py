@@ -247,8 +247,6 @@ def install() -> dict[str, Any]:
             with zipfile.ZipFile(zpath) as zf:
                 zf.extractall(extract)
 
-            # Zip top-level dir matches package.json "name" (lowercase),
-            # not plugin.json "name" (which may be capitalized for display).
             src = extract / PLUGIN_NAME
             if not src.is_dir():
                 src = extract / _PLUGIN_JSON.get("name", "")
@@ -259,33 +257,32 @@ def install() -> dict[str, Any]:
             if not src.is_dir():
                 raise RuntimeError("bad_zip: no plugin folder found")
 
-            # Step 1 — Copy fresh files to a staging dir on the same fs.
-            # Creating a *new* directory + files never hits permission issues
-            # (there is no root-owned file to overwrite).
-            suffix = "".join(random.choices(string.ascii_lowercase, k=8))
-            staging = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.{suffix}"
+            # Try 1 — in-place copy (Panel de Control style). Works if plugin
+            # files belong to deck (after first successful sudo chown).
             try:
-                shutil.copytree(src, staging)
-            except Exception as exc:
-                raise RuntimeError(f"step1_staging_copy: {exc}") from exc
+                for item in src.iterdir():
+                    dest = _PLUGIN_ROOT / item.name
+                    if item.is_dir():
+                        shutil.copytree(item, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dest)
+            except OSError:
+                decky.logger.info("[updater] in-place copy failed, trying staging swap")
 
-            # Step 2 — Rename the old plugin dir away (same fs).
-            # os.rename() only needs w+x on the *parent* directory.
-            backup = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.bak.{int(time.time())}"
-            try:
+                # Try 2 — staging swap. Works if /home/deck/homebrew/plugins/
+                # is writable by deck (which it should be after chown).
+                suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+                staging = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.{suffix}"
+                try:
+                    shutil.copytree(src, staging)
+                except OSError:
+                    decky.logger.info("[updater] staging in plugins/ failed, trying /home/deck/")
+                    staging = Path("/home/deck") / f".deckysense_upd_{suffix}"
+                    shutil.copytree(src, staging)
+
+                backup = _PLUGIN_ROOT.parent / f"{_PLUGIN_ROOT.name}.bak.{int(time.time())}"
                 _PLUGIN_ROOT.rename(backup)
-            except Exception as exc:
-                # Rollback: remove staging so we don't leave garbage
-                shutil.rmtree(staging, ignore_errors=True)
-                raise RuntimeError(f"step2_rename_backup: {exc}") from exc
-
-            # Step 3 — Rename staging into place (same fs).
-            try:
                 staging.rename(_PLUGIN_ROOT)
-            except Exception as exc:
-                # Rollback: put the old plugin back
-                backup.rename(_PLUGIN_ROOT)
-                raise RuntimeError(f"step3_rename_staging: {exc}") from exc
 
         _mark_installed()
         status.state = "done"
