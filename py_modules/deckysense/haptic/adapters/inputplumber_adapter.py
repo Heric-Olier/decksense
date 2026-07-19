@@ -49,35 +49,23 @@ def _pack_ff_effect(strong: int, weak: int, length_ms: int = 500) -> bytes:
     )
 
 
-def _supports_ff(path: str) -> bool:
-    """Check if an evdev device supports force-feedback by trying EVIOCSFF."""
-    try:
-        fd = os.open(path, os.O_RDWR)
-    except OSError:
-        return False
-    try:
-        buf = bytearray(_pack_ff_effect(1, 1, 10))
-        fcntl.ioctl(fd, EVIOCSFF, buf, True)
-        effect_id = struct.unpack_from("<h", buf, 2)[0]
-        ev = struct.pack("<qqHHi", 0, 0, EV_FF, effect_id, 0)
-        os.write(fd, ev)
-        return True
-    except OSError:
-        return False
-    finally:
-        os.close(fd)
-    return False
-
-
 def _evdev_find() -> int | None:
-    """Scan all /dev/input/event* devices for one with FF support."""
+    """Scan /dev/input/event*, return first fd where EVIOCSFF succeeds."""
     import glob
     for path in sorted(glob.glob("/dev/input/event*"), key=lambda p: int(p.replace("/dev/input/event", ""))):
-        if not _supports_ff(path):
+        try:
+            fd = os.open(path, os.O_RDWR)
+        except OSError:
             continue
         try:
-            return os.open(path, os.O_RDWR)
+            buf = bytearray(_pack_ff_effect(1, 1, 10))
+            fcntl.ioctl(fd, EVIOCSFF, buf, True)
+            effect_id = struct.unpack_from("<h", buf, 2)[0]
+            ev = struct.pack("<qqHHi", 0, 0, EV_FF, effect_id, 0)
+            os.write(fd, ev)
+            return fd
         except OSError:
+            os.close(fd)
             continue
     return None
 
