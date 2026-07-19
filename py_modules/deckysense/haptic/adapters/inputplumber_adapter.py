@@ -6,12 +6,12 @@ device that InputPlumber creates for the Go S. We shell out to
 always present on SteamOS and the rumble path is not latency-critical
 enough to justify a native binding.
 
-The subprocess env is **rebuilt minimal** rather than inherited from
-``os.environ``. The plugin_loader process runs with only a handful of
-PyInstaller vars (``_PYI_*``, ``LD_LIBRARY_PATH``); inheriting those
-was breaking gdbus in two distinct ways at different points (libgio
-mismatch from LD_LIBRARY_PATH; unclear interference from _PYI_*).
-A clean env with just the basics avoids both.
+Environment strategy:
+- Inherit the parent env (gdbus needs D-Bus auth context from it)
+- Strip ``LD_LIBRARY_PATH`` (Decky's bundled libgio breaks system gdbus)
+- Strip ``_PYI_*`` vars (PyInstaller artifacts can interfere with D-Bus)
+- Override ``USER``/``HOME`` so polkit identifies the correct user
+- Add ``INSECURE_DISABLE_POLKIT=1`` as belt-and-suspenders
 """
 
 from __future__ import annotations
@@ -27,20 +27,18 @@ DBUS_INTERFACE = "org.shadowblip.Output.ForceFeedback"
 
 
 def _build_env() -> dict[str, str]:
-    """Minimal env for the gdbus subprocess.
-
-    ``USER`` is what polkit reads via ``subject.user``; the rule in
-    ``/etc/polkit-1/rules.d/49-deckysense.rules`` authorises deck
-    without ``auth_admin``. ``HOME`` and ``PATH`` keep gdbus happy.
-    """
-    return {
-        "USER": "deck",
-        "HOME": "/home/deck",
-        "PATH": "/usr/local/bin:/usr/bin:/bin",
-        # Kept as a belt-and-suspenders: lets InputPlumber's own
-        # polkit bypass kick in if it ever respects the caller's env.
-        "INSECURE_DISABLE_POLKIT": "1",
-    }
+    """Build the gdbus subprocess env: inherit parent, strip problem vars."""
+    env = dict(os.environ)
+    env.pop("LD_LIBRARY_PATH", None)
+    # Strip PyInstaller artifacts that interfere with D-Bus auth.
+    for key in list(env):
+        if key.startswith("_PYI_"):
+            del env[key]
+    # Ensure polkit sees the right user regardless of parent env quirks.
+    env["USER"] = "deck"
+    env["HOME"] = "/home/deck"
+    env["INSECURE_DISABLE_POLKIT"] = "1"
+    return env
 
 
 class InputPlumberAdapter(HapticBackend):
