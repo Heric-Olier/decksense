@@ -30,11 +30,8 @@ FF_RUMBLE = 0x50
 # EVIOCSFF = _IOW('E', 0x80, struct ff_effect)
 EVIOCSFF = 0x40304580  # (1 << 30) | (48 << 16) | (ord('E') << 8) | 0x80
 
-# Gamepad event devices to try, in preference order.
-_EVDEV_PATHS = [
-    "/dev/input/event2",   # native "Legion Go S" gamepad
-    "/dev/input/event18",  # virtual Steam Deck pad (InputPlumber uhid target)
-]
+EVIOCGBIT = 0x80084535  # _IOR('E', 0x35, 8) for EV_FF (0x15)
+EV_FF_BIT = 0x50
 
 
 def _pack_ff_effect(strong: int, weak: int, length_ms: int = 500) -> bytes:
@@ -55,9 +52,31 @@ def _pack_ff_effect(strong: int, weak: int, length_ms: int = 500) -> bytes:
     )
 
 
+def _supports_ff(path: str) -> bool:
+    """Check if an evdev device supports force-feedback via EVIOCGBIT."""
+    try:
+        fd = os.open(path, os.O_RDWR)
+    except OSError:
+        return False
+    try:
+        buf = bytearray(8)
+        fcntl.ioctl(fd, EVIOCGBIT, buf, True)
+        bitmask = int.from_bytes(buf, "little")
+        if bitmask & (1 << EV_FF_BIT):
+            return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+    return False
+
+
 def _evdev_find() -> int | None:
-    """Try to open an evdev device with FF support. Returns fd or ``None``."""
-    for path in _EVDEV_PATHS:
+    """Scan all /dev/input/event* devices for one with FF support."""
+    import glob
+    for path in sorted(glob.glob("/dev/input/event*"), key=lambda p: int(p.replace("/dev/input/event", ""))):
+        if not _supports_ff(path):
+            continue
         try:
             return os.open(path, os.O_RDWR)
         except OSError:
@@ -82,7 +101,7 @@ class _EvdevFF:
         fd = _evdev_find()
         if fd is None:
             raise RuntimeError(
-                f"evdev: could not open any device in {_EVDEV_PATHS}"
+                "evdev: no /dev/input/event* device supports force-feedback"
             )
         self._fd = fd
 
