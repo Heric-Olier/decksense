@@ -19,6 +19,8 @@ FF_RUMBLE = 0x50
 # sizeof(struct ff_effect) = 48 on x86_64 Linux
 # EVIOCSFF = _IOW('E', 0x80, struct ff_effect)
 EVIOCSFF = 0x40304580  # (1 << 30) | (48 << 16) | (ord('E') << 8) | 0x80
+# EVIOCRMFF = _IOW('E', 0x81, int)
+EVIOCRMFF = 0x40044581  # (1 << 30) | (4 << 16) | (ord('E') << 8) | 0x81
 
 
 def _pack_ff_effect(strong: int, weak: int, length_ms: int = 500) -> bytes:
@@ -87,6 +89,15 @@ class _EvdevFF:
         bal = max(0.0, min(1.0, balance))
         strong = round(0xFFFF * clamped * min(1.0, bal * 2.0))
         weak = round(0xFFFF * clamped * min(1.0, (1.0 - bal) * 2.0))
+
+        # Free previous effect slot so we never run out (ENOSPC).
+        if self._effect_id is not None:
+            try:
+                fcntl.ioctl(self._fd, EVIOCRMFF, self._effect_id)
+            except OSError:
+                pass
+            self._effect_id = None
+
         buf = bytearray(_pack_ff_effect(strong, weak))
         fcntl.ioctl(self._fd, EVIOCSFF, buf, True)
         self._effect_id = struct.unpack_from("<h", buf, 2)[0]
