@@ -33,7 +33,10 @@ jobs:
         run: ./scripts/package.sh
 
       - name: Upload zip to release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: out/*.zip
-          generateReleaseNotes: true
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --generate-notes \
+            out/*.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
