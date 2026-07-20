@@ -81,10 +81,12 @@ class _EvdevFF:
             )
         self._fd = fd
 
-    def rumble(self, intensity: float) -> None:
+    def rumble(self, intensity: float, balance: float = 0.5) -> None:
         self._ensure_open()
-        strong = round(0xFFFF * max(0.0, min(1.0, intensity)))
-        weak = strong
+        clamped = max(0.0, min(1.0, intensity))
+        bal = max(0.0, min(1.0, balance))
+        strong = round(0xFFFF * clamped * min(1.0, bal * 2.0))
+        weak = round(0xFFFF * clamped * min(1.0, (1.0 - bal) * 2.0))
         buf = bytearray(_pack_ff_effect(strong, weak))
         fcntl.ioctl(self._fd, EVIOCSFF, buf, True)
         self._effect_id = struct.unpack_from("<h", buf, 2)[0]
@@ -122,9 +124,9 @@ _evdev = _EvdevFF()
 class InputPlumberAdapter(HapticBackend):
     """Sends rumble via evdev (no D-Bus dependency)."""
 
-    def rumble(self, intensity: float) -> None:
+    def rumble(self, intensity: float, balance: float = 0.5) -> None:
         clamped = max(0.0, min(float(intensity), 1.0))
-        _evdev.rumble(clamped)
+        _evdev.rumble(clamped, balance)
 
     def stop(self) -> None:
         _evdev.stop()

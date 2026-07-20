@@ -14,8 +14,13 @@ from typing import Protocol
 
 
 class HapticBackend(Protocol):
-    """Minimal contract for a rumble backend."""
+    """Minimal contract for a rumble backend.
 
-    def rumble(self, intensity: float) -> None: ...
+    ``rumble(intensity, balance)``:
+      intensity: overall amplitude [0.0–1.0].
+      balance:   strong/weak motor split [0.0–1.0]; 0.5 = equal.
+    """
+
+    def rumble(self, intensity: float, balance: float = 0.5) -> None: ...
 
     def stop(self) -> None: ...

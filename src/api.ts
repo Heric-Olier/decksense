@@ -35,18 +35,23 @@ export const getCurrentVersion = callable<[], string>("get_current_version");
 
 export interface HapticParams {
   gain: number;
+  balance: number;
 }
 
 export interface PreviewResult {
   state: "playing" | "stopped" | "error";
   intensity?: number;
   gain?: number;
+  balance?: number;
   error?: string;
 }
 
 export const getHapticParams = callable<[], HapticParams>("get_haptic_params");
 export const setHapticGain = callable<[value: number], HapticParams>(
   "set_haptic_gain"
+);
+export const setHapticBalance = callable<[value: number], HapticParams>(
+  "set_haptic_balance"
 );
 export const previewRumble = callable<[rawIntensity: number], PreviewResult>(
   "preview_rumble"

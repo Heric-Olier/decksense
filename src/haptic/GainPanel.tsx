@@ -10,6 +10,7 @@ import {
   debugHapticTest,
   getHapticParams,
   previewRumble,
+  setHapticBalance,
   setHapticGain,
   stopRumble,
   type DebugInfo,
@@ -18,27 +19,21 @@ import {
 const PREVIEW_INTENSITY = 0.5;
 
 /**
- * Haptic Studio — global gain control with live preview.
- *
- * The slider sets the persisted gain multiplier; the Preview button
- * fires a single rumble at `PREVIEW_INTENSITY * gain` so the user can
- * feel the effect of their setting instantly. Stop cancels an ongoing
- * rumble.
- *
- * Backend path: InputPlumber D-Bus Rumble(double) on CompositeDevice0.
+ * Haptic Studio — gain + motor balance with live preview.
  */
 export function GainPanel() {
   const [gain, setGain] = useState(1.0);
+  const [balance, setBalance] = useState(0.5);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debug, setDebug] = useState<string | null>(null);
   const stopTimeoutRef = useRef<number | null>(null);
 
-  // Load persisted gain on mount.
   useEffect(() => {
     void (async () => {
       const params = await getHapticParams();
       setGain(params.gain);
+      setBalance(params.balance);
     })();
     return () => {
       if (stopTimeoutRef.current !== null) {
@@ -47,11 +42,21 @@ export function GainPanel() {
     };
   }, []);
 
-  const onChange = async (value: number) => {
+  const onGainChange = async (value: number) => {
     setGain(value);
     setError(null);
     try {
       await setHapticGain(value);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const onBalanceChange = async (value: number) => {
+    setBalance(value);
+    setError(null);
+    try {
+      await setHapticBalance(value);
     } catch (e) {
       setError(String(e));
     }
@@ -65,7 +70,6 @@ export function GainPanel() {
       return;
     }
     setPreviewing(true);
-    // Auto-stop preview after 1.2s so it can't run forever.
     if (stopTimeoutRef.current !== null) {
       window.clearTimeout(stopTimeoutRef.current);
     }
@@ -92,13 +96,32 @@ export function GainPanel() {
           min={0}
           max={2}
           step={0.05}
-          onChange={onChange}
-          description={`${gain.toFixed(2)}× multiplier applied to rumble intensity`}
+          onChange={onGainChange}
+          description={`${gain.toFixed(2)}× multiplier`}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <SliderField
+          label="Motor balance"
+          value={balance}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={onBalanceChange}
+          description={
+            balance < 0.33
+              ? "Light / buzzy"
+              : balance > 0.66
+                ? "Deep / heavy"
+                : "Balanced"
+          }
         />
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={previewing ? onStop : onPreview}>
-          {previewing ? "Stop preview" : `Preview at ${(PREVIEW_INTENSITY * gain).toFixed(2)} intensity`}
+          {previewing
+            ? "Stop preview"
+            : `Preview at ${(PREVIEW_INTENSITY * gain).toFixed(2)} intensity`}
         </ButtonItem>
       </PanelSectionRow>
       {error && (

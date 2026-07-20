@@ -75,6 +75,11 @@ class Plugin:
             None, get_gain_service().set_gain, value
         )
 
+    async def set_haptic_balance(self, value: float) -> dict[str, Any]:
+        return await self.loop.run_in_executor(
+            None, get_gain_service().set_balance, value
+        )
+
     async def preview_rumble(self, raw_intensity: float = 0.5) -> dict[str, Any]:
         return await self.loop.run_in_executor(
             None, get_gain_service().preview, raw_intensity
