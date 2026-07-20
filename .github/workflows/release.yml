@@ -33,7 +33,7 @@ jobs:
         run: ./scripts/package.sh
 
       - name: Upload zip to release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: out/*.zip
           generate_release_notes: true
