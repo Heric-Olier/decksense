@@ -8,6 +8,34 @@ code like this" — every non-trivial decision should be findable here.
 
 ---
 
+## 2026-07-20 — v0.0.43: focus ring, UinputProxy fix, debug dump, FF_GAIN test
+
+**Focus ring.** Steam stamps ``gpfocus`` on the focused ``Focusable``,
+but Decky doesn't style it.  We now inject a stylesheet (inspired by
+Panel de Control's ``ensureFocusStyles``) that draws a visible accent
+glow — 4px white ring + soft halo — so gamepad navigation shows where
+you are.  Injected once on plugin mount, scoped to the whole app.
+
+**UinputProxy exception fixed.** ``_find_gamepad()`` raises
+``RuntimeError`` when no device supports FF.  Now caught in
+``create_backend()`` → ``switch_backend()`` preserves the old backend
+and returns the error to the frontend instead of crashing.
+
+**Debug dump.** New RPC ``debug_haptic_dump`` scans
+``/dev/input/event*`` and returns every device's name, vendor and
+FF capability alongside current backend info + params.  Written to
+``/tmp/deckysense-haptic-dump.json`` for SSH retrieval.  Frontend
+"Export debug log" button shows the dump inline.
+
+**FF_GAIN test.** When the active backend supports ``game_gain``, two
+buttons appear: "Gain 0 (mute)" and "Gain 1 (full)".  Lets the user
+feel if kernel FF_GAIN actually affects game rumble.
+
+**Files changed.** ``focus.ts`` (new), ``index.tsx``, ``registry.py``,
+``gain_service.py``, ``main.py``, ``api.ts``, ``GainPanel.tsx``.
+
+---
+
 ## 2026-07-20 — v0.0.42: fix FF_GAIN backend — reset target on close + docs
 
 **Problem discovered.** Kernel ``FF_GAIN`` does not propagate to game

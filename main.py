@@ -10,8 +10,10 @@ callable from the TypeScript frontend via ``@decky/api``'s
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import json
 import os as _os
+import struct
 from typing import Any
 
 import decky
@@ -108,13 +110,7 @@ class Plugin:
     # --- RPC: debug ------------------------------------------------------
 
     async def debug_haptic_test(self) -> dict[str, Any]:
-        """Run the exact gdbus call from this plugin's context.
-
-        Returns the call's outcome plus the plugin's PID/UID/env so we
-        can diagnose why an authorised polkit rule is being refused.
-        Also dumps the full info to /tmp/deckysense-haptic-debug.json for
-        easy retrieval from SSH/desktop mode.
-        """
+        """Run the exact gdbus call from this plugin's context."""
         from deckysense.haptic.adapters.inputplumber_adapter import InputPlumberAdapter
 
         info: dict[str, Any] = {
@@ -135,3 +131,83 @@ class Plugin:
         except Exception:
             pass
         return info
+
+    async def debug_haptic_dump(self) -> dict[str, Any]:
+        """Comprehensive diagnostic dump for haptic subsystem.
+
+        Returns backend info, params, device scan, and environment.
+        Also writes to /tmp/deckysense-haptic-dump.json for SSH retrieval.
+        """
+        import glob as _glob
+
+        svc = get_gain_service()
+        backend_info = svc.get_backend_info()
+        params = svc.get_params()
+        backends = svc.list_backends()
+        version = self_updater.CURRENT_VERSION
+
+        # Scan /dev/input/event* for FF-capable devices
+        devices: list[dict[str, Any]] = []
+        for path in sorted(
+            _glob.glob("/dev/input/event*"),
+            key=lambda p: int(p.replace("/dev/input/event", "")),
+        ):
+            try:
+                fd = os.open(path, os.O_RDWR)
+            except OSError:
+                continue
+            try:
+                name = self._query_evdev_name(fd)
+                vid = self._query_evdev_vid(fd)
+                has_ff = self._probe_ff(fd)
+                devices.append({"path": path, "name": name, "vendor": f"0x{vid:04x}", "has_ff": has_ff})
+            finally:
+                os.close(fd)
+
+        dump: dict[str, Any] = {
+            "version": version,
+            "backend": backend_info,
+            "params": params,
+            "backends": backends,
+            "devices": devices,
+            "pid": _os.getpid(),
+            "uid": _os.getuid(),
+        }
+        try:
+            with open("/tmp/deckysense-haptic-dump.json", "w") as _f:
+                json.dump(dump, _f, indent=2)
+        except Exception:
+            pass
+        return dump
+
+    @staticmethod
+    def _query_evdev_name(fd: int) -> str:
+        EVIOCGNAME = 0x82004506
+        buf = bytearray(256)
+        try:
+            fcntl.ioctl(fd, EVIOCGNAME, buf, True)
+            return buf.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    @staticmethod
+    def _query_evdev_vid(fd: int) -> int:
+        EVIOCGID = 0x80084502
+        buf = bytearray(8)
+        try:
+            fcntl.ioctl(fd, EVIOCGID, buf, True)
+            return struct.unpack_from("<H", buf, 2)[0]
+        except OSError:
+            return 0
+
+    @staticmethod
+    def _probe_ff(fd: int) -> bool:
+        buf = bytearray(struct.pack("<HhHHHHHxxHH28x", 0x50, -1, 0, 0, 0, 10, 0, 1, 1))
+        try:
+            fcntl.ioctl(fd, 0x40304580, buf, True)
+            eid = struct.unpack_from("<h", buf, 2)[0]
+            ev = struct.pack("<llHHi", 0, 0, 0x15, eid, 0)
+            os.write(fd, ev)
+            return True
+        except OSError:
+            return False

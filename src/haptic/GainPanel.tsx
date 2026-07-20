@@ -8,6 +8,7 @@ import {
   staticClasses,
 } from "@decky/ui";
 import {
+  debugHapticDump,
   getHapticBackendInfo,
   getHapticParams,
   listHapticBackends,
@@ -18,6 +19,7 @@ import {
   switchHapticBackend,
   type BackendInfo,
   type DebugInfo,
+  type HapticDump,
   debugHapticTest,
 } from "../api";
 import { BackendCard } from "./BackendCard";
@@ -48,6 +50,7 @@ export function GainPanel() {
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debug, setDebug] = useState<string | null>(null);
+  const [dumping, setDumping] = useState(false);
   const stopTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -241,6 +244,36 @@ export function GainPanel() {
         </PanelSectionRow>
       )}
 
+      {/* FF_GAIN test — only shown when the backend supports game_gain */}
+      {hasFeature("game_gain") && (
+        <PanelSectionRow>
+          <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <ButtonItem
+                layout="below"
+                onClick={async () => {
+                  await setHapticGain(0);
+                  setGain(0);
+                }}
+              >
+                Gain 0 (mute)
+              </ButtonItem>
+            </div>
+            <div style={{ flex: 1 }}>
+              <ButtonItem
+                layout="below"
+                onClick={async () => {
+                  await setHapticGain(1);
+                  setGain(1);
+                }}
+              >
+                Gain 1 (full)
+              </ButtonItem>
+            </div>
+          </div>
+        </PanelSectionRow>
+      )}
+
       <PanelSectionRow>
         <ButtonItem
           layout="below"
@@ -249,7 +282,24 @@ export function GainPanel() {
             setDebug(JSON.stringify(r, null, 2));
           }}
         >
-          Haptic debug
+          Haptic test
+        </ButtonItem>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          disabled={dumping}
+          onClick={async () => {
+            setDumping(true);
+            try {
+              const r: HapticDump = await debugHapticDump();
+              setDebug(JSON.stringify(r, null, 2));
+            } finally {
+              setDumping(false);
+            }
+          }}
+        >
+          {dumping ? "Dumping..." : "Export debug log"}
         </ButtonItem>
       </PanelSectionRow>
       {debug && (
@@ -262,6 +312,8 @@ export function GainPanel() {
               padding: 8,
               borderRadius: 4,
               fontSize: "0.8em",
+              maxHeight: 200,
+              overflow: "auto",
             }}
           >
             {debug}

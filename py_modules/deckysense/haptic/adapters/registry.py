@@ -50,7 +50,16 @@ def list_backends() -> list[dict[str, Any]]:
 
 
 def create_backend(backend_id: str) -> HapticBackend:
-    """Instantiate a backend by id.  Raises ``KeyError`` if unknown."""
+    """Instantiate a backend by id.
+
+    Raises ``KeyError`` if the id is unknown, or ``RuntimeError`` with
+    the original exception chain if construction fails.
+    """
     _ensure_loaded()
     cls = _BACKEND_CLASSES[backend_id]
-    return cls()
+    try:
+        return cls()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to create backend '{backend_id}': {exc}"
+        ) from exc

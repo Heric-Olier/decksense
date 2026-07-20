@@ -89,3 +89,22 @@ export interface DebugInfo {
 }
 
 export const debugHapticTest = callable<[], DebugInfo>("debug_haptic_test");
+
+export interface EvdevDeviceInfo {
+  path: string;
+  name: string;
+  vendor: string;
+  has_ff: boolean;
+}
+
+export interface HapticDump {
+  version: string;
+  backend: BackendInfo;
+  params: { gain: number; balance: number };
+  backends: BackendInfo[];
+  devices: EvdevDeviceInfo[];
+  pid: number;
+  uid: number;
+}
+
+export const debugHapticDump = callable<[], HapticDump>("debug_haptic_dump");

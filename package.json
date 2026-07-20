@@ -1,6 +1,6 @@
 {
   "name": "deckysense",
-  "version": "0.0.42",
+  "version": "0.0.43",
   "description": "Display, haptic and per-game profile studio for PC handhelds.",
   "type": "module",
   "packageManager": "pnpm@11.13.1",

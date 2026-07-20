@@ -71,7 +71,7 @@ class GainService:
     def get_backend_info(self) -> dict[str, Any]:
         """Return metadata about the currently active backend."""
         if self._backend is None:
-            return {}
+            return {"id": "", "name": "None", "description": "No backend active", "features": []}
         return {
             "id": self._backend.id,
             "name": self._backend.name,
@@ -80,13 +80,20 @@ class GainService:
         }
 
     def switch_backend(self, backend_id: str) -> dict[str, Any]:
-        """Hot-swap the active backend.  Persists the choice."""
+        """Hot-swap the active backend.  Persists the choice.
+
+        If the new backend fails to initialise, the old backend is kept
+        and the error is returned in the response.
+        """
         if self._backend is not None and self._backend.id == backend_id:
             return self.get_backend_info()
         try:
             new = create_backend(backend_id)
-        except KeyError as exc:
-            raise ValueError(f"Unknown backend: {backend_id}") from exc
+        except (KeyError, RuntimeError) as exc:
+            decky.logger.error("switch_backend(%s) failed: %s", backend_id, exc)
+            info = self.get_backend_info()
+            info["error"] = f"Failed: {exc}"
+            return info
         old = self._backend
         self._backend = new
         if old is not None:
@@ -94,7 +101,6 @@ class GainService:
                 old.close()
             except Exception:  # noqa: BLE001
                 pass
-        # Re-apply current params to the new backend
         try:
             self._backend.set_kernel_gain(min(1.0, self._params.gain))
         except Exception:  # noqa: BLE001
