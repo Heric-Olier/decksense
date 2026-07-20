@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload artifact (fallback)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deckysense-${{ github.ref_name }}.zip
           path: out/*.zip
