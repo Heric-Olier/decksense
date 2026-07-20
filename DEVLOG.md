@@ -60,8 +60,15 @@ A `registry.py` module provides the single source of truth:
 2. Write `DEVLOG.md` entry at the top.
 3. Commit all changes.
 4. Tag with `v<version>`.
-5. Push — the `release.yml` GitHub Action builds and uploads the zip.
+5. Push — the `release.yml` GitHub Action normally builds and uploads
+   the zip automatically.
 6. On the Legion Go S, open Settings → "Check for updates".
+
+> **Note (2026-07-20).** GitHub Actions was having issues today, so
+> v0.0.41 was published manually: commit + tag + push, then the release
+> zip is available under GitHub Releases. The normal flow is fully
+> automated via `.github/workflows/release.yml` — only do manual
+> publishing when CI is unavailable.
 
 ---
 
