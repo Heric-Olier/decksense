@@ -8,6 +8,31 @@ code like this" — every non-trivial decision should be findable here.
 
 ---
 
+## 2026-07-20 — v0.0.42: fix FF_GAIN backend — reset target on close + docs
+
+**Problem discovered.** Kernel ``FF_GAIN`` does not propagate to game
+rumble because InputPlumber's xb360 target reads the original effect
+magnitudes during the uinput upload callback, *before* the kernel
+applies ``ff->gain``.  The gain value gets stored in the kernel but
+never reaches what InputPlumber forwards to the hardware.
+
+**Fixes in this release.**
+
+- ``FFGainBackend.close()`` now calls ``SetTargetDevices(['deck-uhid'])``
+  to restore the original controller when switching away from FF_GAIN
+  mode (or on plugin unload).
+- ``_write_gain()`` tries both ``EV_FF``/``FF_GAIN`` and ``EVIOCSGAIN``
+  ioctl (belt and suspenders).
+- Description in the UI updated to be honest: "Game gain is best-effort
+  — InputPlumber reads effect magnitudes before the kernel applies
+  FF_GAIN, so the slider may not change game rumble."
+- UI redesigned: chip-based backend selector (like Panel de Control's
+  ``FirmwareModes``) instead of stretched cards.
+
+**Files changed.** ``ff_gain.py``, ``BackendCard.tsx``, ``GainPanel.tsx``.
+
+---
+
 ## 2026-07-20 — v0.0.41: three backends + hot-swap UX
 
 **Problem.** The uinput proxy (v0.0.40) creates a virtual device that no
